@@ -1,0 +1,8 @@
+# Copy this content to your .env.local file:
+
+NEXT_PUBLIC_SUPABASE_URL=https://ruybikhauyblhqitdvrz.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_4F9VZ2VP3R_twil-4rZvUg_iTrALNzg
+SUPABASE_SERVICE_ROLE_KEY=GET_THIS_FROM_SUPABASE_DASHBOARD
+
+NEXT_PUBLIC_APP_NAME=KSTVET Attendance System
+NEXT_PUBLIC_APP_URL=http://localhost:3000
