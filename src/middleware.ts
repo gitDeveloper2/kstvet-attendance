@@ -6,6 +6,20 @@ import { getPublicEnv } from '@/lib/env';
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
 
+  const pathname = req.nextUrl.pathname;
+
+  // Protected routes
+  const protectedRoutes = ['/dashboard', '/trainer', '/trainee', '/reports', '/admin'];
+  const isProtectedRoute = protectedRoutes.some(route =>
+    pathname.startsWith(route)
+  );
+
+  // If Edge runtime can't reach Supabase, avoid calling auth APIs on public/auth routes.
+  // We only need middleware enforcement on protected pages.
+  if (!isProtectedRoute) {
+    return res;
+  }
+
   const { supabaseUrl, supabaseAnonKey } = getPublicEnv();
   
   const supabase = createServerClient(
@@ -37,71 +51,46 @@ export async function middleware(req: NextRequest) {
   // NOTE: We intentionally use getSession() here.
   // getUser() requires a network call in the Edge runtime and may fail (e.g. DNS/proxy issues),
   // which breaks navigation. getSession() is cookie-based and stable for routing.
-  const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession();
+  let authUser: any = null;
+  let sessionError: any = null;
+
+  try {
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
+
+    sessionError = error;
+    authUser = session?.user ?? null;
+  } catch (e: any) {
+    sessionError = e;
+    authUser = null;
+  }
 
   if (sessionError) {
     console.log('[middleware] getSession error', {
       path: req.nextUrl.pathname,
-      error: sessionError.message,
+      error: sessionError?.message ?? String(sessionError),
     });
   }
 
-  const authUser = session?.user ?? null;
   const roleFromMetadata = (authUser?.user_metadata as any)?.role as string | undefined;
 
-  // Protected routes
-  const protectedRoutes = ['/dashboard', '/trainer', '/trainee', '/reports', '/admin'];
-  const isProtectedRoute = protectedRoutes.some(route => 
-    req.nextUrl.pathname.startsWith(route)
-  );
-
-  const isAdminRoute = req.nextUrl.pathname.startsWith('/admin');
-
-  // Auth routes (redirect if already authenticated)
-  const authRoutes = ['/login', '/signup'];
-  const isAuthRoute = authRoutes.some(route => 
-    req.nextUrl.pathname === route
-  );
+  const isAdminRoute = pathname.startsWith('/admin');
 
   if (isProtectedRoute && !authUser) {
     console.log('[middleware] redirect unauthenticated -> /login', {
-      path: req.nextUrl.pathname,
+      path: pathname,
     });
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
   if (isAdminRoute && authUser && roleFromMetadata && roleFromMetadata !== 'admin') {
     console.log('[middleware] redirect non-admin away from /admin', {
-      path: req.nextUrl.pathname,
+      path: pathname,
       userId: authUser.id,
       role: roleFromMetadata ?? 'unknown',
     });
-    return NextResponse.redirect(new URL('/dashboard', req.url));
-  }
-
-  if (isAuthRoute && authUser) {
-    const role = roleFromMetadata;
-    console.log('[middleware] authenticated on auth route, redirecting', {
-      path: req.nextUrl.pathname,
-      userId: authUser.id,
-      role: role ?? 'unknown',
-    });
-
-    if (role === 'trainer') {
-      return NextResponse.redirect(new URL('/trainer', req.url));
-    }
-
-    if (role === 'trainee') {
-      return NextResponse.redirect(new URL('/trainee', req.url));
-    }
-
-    if (role === 'admin') {
-      return NextResponse.redirect(new URL('/admin', req.url));
-    }
-
     return NextResponse.redirect(new URL('/dashboard', req.url));
   }
 

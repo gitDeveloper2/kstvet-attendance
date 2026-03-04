@@ -7,7 +7,17 @@ function getRequired(name: string, value: string | undefined): string {
   if (!value) {
     throw new Error(`Missing ${name}. Set it in .env.local and restart the dev server.`);
   }
-  return value;
+  return value.trim();
+}
+
+function validateSupabaseUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!/^https?:\/\//i.test(trimmed)) {
+    throw new Error(
+      `Invalid NEXT_PUBLIC_SUPABASE_URL. Expected a full URL starting with https:// (got: ${trimmed}).`
+    );
+  }
+  return trimmed;
 }
 
 function resolveSupabaseAnonKey(): string {
@@ -19,9 +29,11 @@ function resolveSupabaseAnonKey(): string {
 }
 
 export function getPublicEnv(): PublicEnv {
-  const supabaseUrl = getRequired(
+  const supabaseUrl = validateSupabaseUrl(
+    getRequired(
     'NEXT_PUBLIC_SUPABASE_URL',
     process.env.NEXT_PUBLIC_SUPABASE_URL
+    )
   );
 
   const supabaseAnonKey = getRequired(

@@ -26,58 +26,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Get initial session
     const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session?.user) {
-        // In the browser we can safely fetch the verified user to get authoritative metadata
-        const { data: verifiedUserData } = await supabase.auth.getUser();
-
-        // Fetch user profile from our users table
-        const { data: profile, error: profileError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-
-        const meta = (verifiedUserData.user?.user_metadata ?? session.user.user_metadata) as any;
-
-        if (profileError) {
-          console.log('[auth] users profile fetch error, falling back to auth metadata', {
-            error: profileError.message,
-          });
-
-          const fallbackUser: User = {
-            id: session.user.id,
-            email: session.user.email ?? '',
-            name: meta?.name ?? '',
-            role: (meta?.role ?? 'trainee') as any,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-
-          setUser(fallbackUser);
-        } else {
-          const merged: User = {
-            ...(profile as any),
-            role: (meta?.role ?? (profile as any)?.role ?? 'trainee') as any,
-            name: meta?.name ?? (profile as any)?.name ?? '',
-          };
-          setUser(merged);
-        }
-      }
-      
-      setLoading(false);
-    };
-
-    getInitialSession();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
         if (session?.user) {
           // In the browser we can safely fetch the verified user to get authoritative metadata
           const { data: verifiedUserData } = await supabase.auth.getUser();
 
+          // Fetch user profile from our users table
           const { data: profile, error: profileError } = await supabase
             .from('users')
             .select('*')
@@ -87,8 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const meta = (verifiedUserData.user?.user_metadata ?? session.user.user_metadata) as any;
 
           if (profileError) {
-            console.log('[auth] users profile fetch error (onAuthStateChange), falling back to auth metadata', {
-              event,
+            console.log('[auth] users profile fetch error, falling back to auth metadata', {
               error: profileError.message,
             });
 
@@ -110,10 +65,71 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             };
             setUser(merged);
           }
-        } else {
-          setUser(null);
         }
+      } catch (e: any) {
+        console.log('[auth] getInitialSession error', {
+          error: e?.message ?? String(e),
+        });
+        setUser(null);
+      } finally {
         setLoading(false);
+      }
+    };
+
+    getInitialSession();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        try {
+          if (session?.user) {
+            // In the browser we can safely fetch the verified user to get authoritative metadata
+            const { data: verifiedUserData } = await supabase.auth.getUser();
+
+            const { data: profile, error: profileError } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+
+            const meta = (verifiedUserData.user?.user_metadata ?? session.user.user_metadata) as any;
+
+            if (profileError) {
+              console.log('[auth] users profile fetch error (onAuthStateChange), falling back to auth metadata', {
+                event,
+                error: profileError.message,
+              });
+
+              const fallbackUser: User = {
+                id: session.user.id,
+                email: session.user.email ?? '',
+                name: meta?.name ?? '',
+                role: (meta?.role ?? 'trainee') as any,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              };
+
+              setUser(fallbackUser);
+            } else {
+              const merged: User = {
+                ...(profile as any),
+                role: (meta?.role ?? (profile as any)?.role ?? 'trainee') as any,
+                name: meta?.name ?? (profile as any)?.name ?? '',
+              };
+              setUser(merged);
+            }
+          } else {
+            setUser(null);
+          }
+        } catch (e: any) {
+          console.log('[auth] onAuthStateChange handler error', {
+            event,
+            error: e?.message ?? String(e),
+          });
+          setUser(null);
+        } finally {
+          setLoading(false);
+        }
       }
     );
 
