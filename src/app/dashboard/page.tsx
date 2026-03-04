@@ -62,13 +62,14 @@ export default function DashboardPage() {
                   K
                 </span>
                 <span className="hidden sm:inline text-xl font-semibold text-gray-900">KAS</span>
+                <span className="hidden sm:inline text-sm text-gray-500">Dashboard</span>
               </Link>
             </div>
-            <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-4">
-              <span className="inline-flex px-2 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <span className="hidden sm:inline-flex px-2 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800">
                 {user.role}
               </span>
-              <div className="text-right">
+              <div className="hidden sm:block text-right">
                 <div className="text-gray-900 text-sm font-medium">{user.name}</div>
                 <div className="text-gray-500 text-xs">{user.email}</div>
               </div>
