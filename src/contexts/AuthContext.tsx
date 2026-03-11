@@ -29,9 +29,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // In the browser we can safely fetch the verified user to get authoritative metadata
-    const { data: verifiedUserData } = await supabase.auth.getUser();
-
     // Fetch user profile from our users table
     const { data: profile, error: profileError } = await supabase
       .from('users')
@@ -39,7 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .eq('id', session.user.id)
       .single();
 
-    const meta = (verifiedUserData.user?.user_metadata ?? session.user.user_metadata) as any;
+    const meta = (session.user.user_metadata ?? {}) as any;
 
     if (profileError) {
       console.log('[auth] users profile fetch error, falling back to auth metadata', {
@@ -115,8 +112,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email,
         password,
       });
-      const { data: { session } } = await supabase.auth.getSession();
-      await hydrateFromSession(session);
       return { error };
     } catch (e: any) {
       return {
