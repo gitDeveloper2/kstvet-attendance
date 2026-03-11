@@ -75,9 +75,9 @@ export async function DELETE(request: NextRequest) {
     if (trainerGate.ok) {
       const { data: row, error: rowError } = await supabaseAdmin
         .from('attendance')
-        .select('id, session:sessions!inner(id, trainer_id)')
+        .select('id, session_id, sessions!inner(trainer_id)')
         .eq('id', id)
-        .eq('session.trainer_id', trainerGate.userId)
+        .eq('sessions.trainer_id', trainerGate.userId)
         .maybeSingle();
 
       if (rowError) {
