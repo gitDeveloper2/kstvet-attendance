@@ -263,7 +263,15 @@ export default function TraineeDashboard() {
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           <div className="mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Mark Attendance</h2>
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">Mark Attendance</h2>
+              <Link
+                href="/dashboard"
+                className="text-sm bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md hover:bg-gray-50"
+              >
+                Back to Menu
+              </Link>
+            </div>
             
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded mb-4">
@@ -319,7 +327,16 @@ export default function TraineeDashboard() {
                 </button>
               ) : (
                 <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Scan QR Code</h3>
+                  <div className="flex items-center justify-between gap-4 mb-4">
+                    <h3 className="text-lg font-medium text-gray-900">Scan QR Code</h3>
+                    <button
+                      type="button"
+                      onClick={() => setShowScanner(false)}
+                      className="text-sm bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-md hover:bg-gray-50"
+                    >
+                      Back
+                    </button>
+                  </div>
                   <div className="mb-4" style={{ width: '100%', maxWidth: '400px', margin: '0 auto' }}>
                     <QrScanner
                       onDecode={handleScan}

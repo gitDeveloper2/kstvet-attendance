@@ -212,15 +212,25 @@ function SessionItem({ session, onUpdate }: { session: Session; onUpdate: () => 
         </div>
         <div className="flex space-x-2">
           <button
-            onClick={() => setShowQR(!showQR)}
-            className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded text-sm hover:bg-indigo-200"
+            onClick={() => {
+              if (!session.is_active) return;
+              setShowQR(!showQR);
+            }}
+            disabled={!session.is_active}
+            className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded text-sm hover:bg-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {showQR ? 'Hide' : 'Show'} QR
           </button>
         </div>
       </div>
-      
-      {showQR && (
+
+      {!session.is_active && (
+        <div className="mt-3 text-xs text-gray-500">
+          This session is inactive/expired. QR code and session token are disabled.
+        </div>
+      )}
+
+      {showQR && session.is_active && (
         <div className="mt-4 p-4 bg-gray-50 rounded-lg">
           <QRCodeDisplay qrToken={session.qr_token} sessionTitle={session.title} />
         </div>
