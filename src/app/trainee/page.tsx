@@ -87,7 +87,7 @@ export default function TraineeDashboard() {
         throw new Error(json?.error ?? 'Failed to delete attendance');
       }
 
-      setSuccess('Attendance entry deleted.');
+      setSuccess('Attendance entry unchecked.');
       fetchAttendance();
     } catch (e: any) {
       setError(e?.message ?? 'Failed to delete attendance');
@@ -389,12 +389,12 @@ export default function TraineeDashboard() {
                           <button
                             type="button"
                             onClick={() => {
-                              const ok = confirm('Delete this attendance entry?');
+                              const ok = confirm('Uncheck (remove) this attendance entry?');
                               if (ok) deleteAttendance(record.id);
                             }}
                             className="bg-red-50 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-100"
                           >
-                            Delete
+                            Uncheck
                           </button>
                         </div>
                       </div>

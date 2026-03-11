@@ -371,12 +371,12 @@ export default function ReportsPage() {
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    const ok = confirm('Delete this attendance entry?');
+                                    const ok = confirm('Uncheck (remove) this attendance entry?');
                                     if (ok) deleteAttendance(attendance.id);
                                   }}
                                   className="bg-red-50 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-100"
                                 >
-                                  Delete
+                                  Uncheck
                                 </button>
                               </td>
                             </tr>
