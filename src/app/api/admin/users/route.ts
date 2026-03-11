@@ -97,6 +97,60 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function PATCH(request: NextRequest) {
+  const gate = await requireAdmin(request);
+  if (!gate.ok) return gate.response;
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) {
+      return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
+    }
+
+    const body = await request.json();
+    const { name, email, role } = body as { name?: string; email?: string; role?: string };
+
+    const patch: any = {};
+    if (typeof name === 'string') patch.name = name;
+    if (typeof email === 'string') patch.email = email;
+    if (typeof role === 'string') patch.role = role;
+
+    const { data, error } = await (supabaseAdmin as any)
+      .from('users')
+      .update(patch)
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+
+    if (typeof email === 'string' || typeof name === 'string' || typeof role === 'string') {
+      const metaPatch: any = {};
+      if (typeof name === 'string') metaPatch.name = name;
+      if (typeof role === 'string') metaPatch.role = role;
+
+      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, {
+        ...(typeof email === 'string' ? { email } : {}),
+        ...(Object.keys(metaPatch).length ? { user_metadata: metaPatch } : {}),
+      } as any);
+
+      if (authError) {
+        return NextResponse.json({ success: false, error: authError.message }, { status: 500 });
+      }
+    }
+
+    return NextResponse.json({ success: true, data });
+  } catch (e: any) {
+    return NextResponse.json(
+      { success: false, error: e?.message ?? 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function DELETE(request: NextRequest) {
   const gate = await requireAdmin(request);
   if (!gate.ok) return gate.response;

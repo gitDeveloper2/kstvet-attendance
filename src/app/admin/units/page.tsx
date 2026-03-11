@@ -17,6 +17,11 @@ export default function AdminUnitsPage() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editCode, setEditCode] = useState('');
+  const [editName, setEditName] = useState('');
+  const [editActive, setEditActive] = useState(true);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [loadingUnits, setLoadingUnits] = useState(true);
 
   useEffect(() => {
@@ -45,6 +50,55 @@ export default function AdminUnitsPage() {
     }
     setUnits(json.data ?? []);
     setLoadingUnits(false);
+  };
+
+  const startEdit = (unit: Unit) => {
+    setEditingId(unit.id);
+    setEditCode(unit.code ?? '');
+    setEditName(unit.name ?? '');
+    setEditActive(unit.is_active ?? true);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditCode('');
+    setEditName('');
+    setEditActive(true);
+    setSavingEdit(false);
+  };
+
+  const saveEdit = async (id: string) => {
+    setError('');
+    setSavingEdit(true);
+
+    const patch: any = {
+      is_active: Boolean(editActive),
+    };
+    if (editCode.trim()) patch.code = editCode.trim();
+    if (editName.trim()) patch.name = editName.trim();
+
+    const prev = units;
+    setUnits((u) => u.map((x) => (x.id === id ? ({ ...(x as any), ...patch } as any) : x)));
+
+    try {
+      const res = await fetch(`/api/admin/units?id=${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error ?? 'Failed to update unit');
+      }
+
+      await fetchUnits();
+      cancelEdit();
+    } catch (e: any) {
+      setUnits(prev);
+      setError(e?.message ?? 'Failed to update unit');
+      setSavingEdit(false);
+    }
   };
 
   const createUnit = async (e: React.FormEvent) => {
@@ -189,25 +243,83 @@ export default function AdminUnitsPage() {
                 <li className="px-6 py-4 text-gray-500">No units yet.</li>
               ) : (
                 filteredUnits.map((u) => (
-                  <li key={u.id} className="px-6 py-4 flex items-center justify-between">
-                    <div>
-                      <div className="font-medium text-gray-900">{u.code}</div>
-                      <div className="text-sm text-gray-600">{u.name}</div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-sm text-gray-500">{u.is_active ? 'Active' : 'Inactive'}</div>
-                      <button
-                        type="button"
-                        disabled={deletingId === u.id}
-                        onClick={() => {
-                          const ok = confirm(`Delete unit ${u.code}?`);
-                          if (ok) deleteUnit(u.id);
-                        }}
-                        className="bg-red-50 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-100 disabled:opacity-50"
-                      >
-                        {deletingId === u.id ? 'Deleting…' : 'Delete'}
-                      </button>
-                    </div>
+                  <li key={u.id} className="px-6 py-4">
+                    {editingId === u.id ? (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <input
+                            value={editCode}
+                            onChange={(e) => setEditCode(e.target.value)}
+                            placeholder="Code"
+                            className="border border-gray-300 rounded-md py-2 px-3"
+                          />
+                          <input
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            placeholder="Name"
+                            className="border border-gray-300 rounded-md py-2 px-3"
+                          />
+                          <div className="flex items-center justify-between gap-3">
+                            <label className="flex items-center gap-2 text-sm text-gray-700">
+                              <input
+                                type="checkbox"
+                                checked={editActive}
+                                onChange={(e) => setEditActive(e.target.checked)}
+                                className="rounded border-gray-300"
+                              />
+                              Active
+                            </label>
+
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                disabled={savingEdit}
+                                onClick={() => saveEdit(u.id)}
+                                className="bg-indigo-600 text-white px-3 py-1 rounded text-sm hover:bg-indigo-700 disabled:opacity-50"
+                              >
+                                {savingEdit ? 'Saving…' : 'Save'}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={savingEdit}
+                                onClick={cancelEdit}
+                                className="bg-gray-300 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-400 disabled:opacity-50"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-gray-900">{u.code}</div>
+                          <div className="text-sm text-gray-600">{u.name}</div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="text-sm text-gray-500">{u.is_active ? 'Active' : 'Inactive'}</div>
+                          <button
+                            type="button"
+                            onClick={() => startEdit(u)}
+                            className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded text-sm hover:bg-indigo-100"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            disabled={deletingId === u.id}
+                            onClick={() => {
+                              const ok = confirm(`Delete unit ${u.code}?`);
+                              if (ok) deleteUnit(u.id);
+                            }}
+                            className="bg-red-50 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-100 disabled:opacity-50"
+                          >
+                            {deletingId === u.id ? 'Deleting…' : 'Delete'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </li>
                 ))
               )}

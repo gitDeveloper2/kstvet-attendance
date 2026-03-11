@@ -20,6 +20,10 @@ export default function AdminUsersPage() {
   const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(true);
 
   useEffect(() => {
@@ -48,6 +52,50 @@ export default function AdminUsersPage() {
     }
     setTrainers(json.data ?? []);
     setLoadingUsers(false);
+  };
+
+  const startEdit = (t: User) => {
+    setEditingId(t.id);
+    setEditName(t.name ?? '');
+    setEditEmail(t.email ?? '');
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditName('');
+    setEditEmail('');
+    setSavingEdit(false);
+  };
+
+  const saveEdit = async (id: string) => {
+    setError('');
+    setSuccess('');
+    setSavingEdit(true);
+
+    const patch: any = {};
+    if (editName.trim()) patch.name = editName.trim();
+    if (editEmail.trim()) patch.email = editEmail.trim();
+
+    const prev = trainers;
+    setTrainers((t) => t.map((x) => (x.id === id ? ({ ...(x as any), ...patch } as any) : x)));
+
+    try {
+      const res = await fetch(`/api/admin/users?id=${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error ?? 'Failed to update user');
+      }
+      await fetchUsers();
+      cancelEdit();
+    } catch (e: any) {
+      setTrainers(prev);
+      setError(e?.message ?? 'Failed to update user');
+      setSavingEdit(false);
+    }
   };
 
   const createTrainer = async (e: React.FormEvent) => {
@@ -215,25 +263,71 @@ export default function AdminUsersPage() {
                 <li className="px-6 py-4 text-gray-500">No trainers found.</li>
               ) : (
                 filtered.map((t) => (
-                  <li key={t.id} className="px-6 py-4 flex items-center justify-between">
-                    <div>
-                      <div className="font-medium text-gray-900">{t.name}</div>
-                      <div className="text-sm text-gray-600">{t.email}</div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-sm text-gray-500">Role: {t.role}</div>
-                      <button
-                        type="button"
-                        disabled={deletingId === t.id}
-                        onClick={() => {
-                          const ok = confirm(`Delete user ${t.email}?`);
-                          if (ok) deleteTrainer(t.id);
-                        }}
-                        className="bg-red-50 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-100 disabled:opacity-50"
-                      >
-                        {deletingId === t.id ? 'Deleting…' : 'Delete'}
-                      </button>
-                    </div>
+                  <li key={t.id} className="px-6 py-4">
+                    {editingId === t.id ? (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <input
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            placeholder="Name"
+                            className="border border-gray-300 rounded-md py-2 px-3"
+                          />
+                          <input
+                            value={editEmail}
+                            onChange={(e) => setEditEmail(e.target.value)}
+                            placeholder="Email"
+                            className="border border-gray-300 rounded-md py-2 px-3"
+                          />
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              disabled={savingEdit}
+                              onClick={() => saveEdit(t.id)}
+                              className="bg-indigo-600 text-white px-3 py-1 rounded text-sm hover:bg-indigo-700 disabled:opacity-50"
+                            >
+                              {savingEdit ? 'Saving…' : 'Save'}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={savingEdit}
+                              onClick={cancelEdit}
+                              className="bg-gray-300 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-400 disabled:opacity-50"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-gray-900">{t.name}</div>
+                          <div className="text-sm text-gray-600">{t.email}</div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="text-sm text-gray-500">Role: {t.role}</div>
+                          <button
+                            type="button"
+                            onClick={() => startEdit(t)}
+                            className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded text-sm hover:bg-indigo-100"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            disabled={deletingId === t.id}
+                            onClick={() => {
+                              const ok = confirm(`Delete user ${t.email}?`);
+                              if (ok) deleteTrainer(t.id);
+                            }}
+                            className="bg-red-50 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-100 disabled:opacity-50"
+                          >
+                            {deletingId === t.id ? 'Deleting…' : 'Delete'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </li>
                 ))
               )}

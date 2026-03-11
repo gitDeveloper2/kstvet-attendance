@@ -23,49 +23,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const hydrateFromSession = async (session: any) => {
+    if (!session?.user) {
+      setUser(null);
+      return;
+    }
+
+    // In the browser we can safely fetch the verified user to get authoritative metadata
+    const { data: verifiedUserData } = await supabase.auth.getUser();
+
+    // Fetch user profile from our users table
+    const { data: profile, error: profileError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+
+    const meta = (verifiedUserData.user?.user_metadata ?? session.user.user_metadata) as any;
+
+    if (profileError) {
+      console.log('[auth] users profile fetch error, falling back to auth metadata', {
+        error: profileError.message,
+      });
+
+      const fallbackUser: User = {
+        id: session.user.id,
+        email: session.user.email ?? '',
+        name: meta?.name ?? '',
+        role: (meta?.role ?? 'trainee') as any,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      setUser(fallbackUser);
+      return;
+    }
+
+    const merged: User = {
+      ...(profile as any),
+      role: (meta?.role ?? (profile as any)?.role ?? 'trainee') as any,
+      name: meta?.name ?? (profile as any)?.name ?? '',
+    };
+    setUser(merged);
+  };
+
   useEffect(() => {
     // Get initial session
     const getInitialSession = async () => {
+      setLoading(true);
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user) {
-          // In the browser we can safely fetch the verified user to get authoritative metadata
-          const { data: verifiedUserData } = await supabase.auth.getUser();
 
-          // Fetch user profile from our users table
-          const { data: profile, error: profileError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-
-          const meta = (verifiedUserData.user?.user_metadata ?? session.user.user_metadata) as any;
-
-          if (profileError) {
-            console.log('[auth] users profile fetch error, falling back to auth metadata', {
-              error: profileError.message,
-            });
-
-            const fallbackUser: User = {
-              id: session.user.id,
-              email: session.user.email ?? '',
-              name: meta?.name ?? '',
-              role: (meta?.role ?? 'trainee') as any,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            };
-
-            setUser(fallbackUser);
-          } else {
-            const merged: User = {
-              ...(profile as any),
-              role: (meta?.role ?? (profile as any)?.role ?? 'trainee') as any,
-              name: meta?.name ?? (profile as any)?.name ?? '',
-            };
-            setUser(merged);
-          }
-        }
+        await hydrateFromSession(session);
       } catch (e: any) {
         console.log('[auth] getInitialSession error', {
           error: e?.message ?? String(e),
@@ -81,46 +90,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        setLoading(true);
         try {
-          if (session?.user) {
-            // In the browser we can safely fetch the verified user to get authoritative metadata
-            const { data: verifiedUserData } = await supabase.auth.getUser();
-
-            const { data: profile, error: profileError } = await supabase
-              .from('users')
-              .select('*')
-              .eq('id', session.user.id)
-              .single();
-
-            const meta = (verifiedUserData.user?.user_metadata ?? session.user.user_metadata) as any;
-
-            if (profileError) {
-              console.log('[auth] users profile fetch error (onAuthStateChange), falling back to auth metadata', {
-                event,
-                error: profileError.message,
-              });
-
-              const fallbackUser: User = {
-                id: session.user.id,
-                email: session.user.email ?? '',
-                name: meta?.name ?? '',
-                role: (meta?.role ?? 'trainee') as any,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              };
-
-              setUser(fallbackUser);
-            } else {
-              const merged: User = {
-                ...(profile as any),
-                role: (meta?.role ?? (profile as any)?.role ?? 'trainee') as any,
-                name: meta?.name ?? (profile as any)?.name ?? '',
-              };
-              setUser(merged);
-            }
-          } else {
-            setUser(null);
-          }
+          await hydrateFromSession(session);
         } catch (e: any) {
           console.log('[auth] onAuthStateChange handler error', {
             event,
@@ -138,10 +110,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
+      setLoading(true);
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
+      const { data: { session } } = await supabase.auth.getSession();
+      await hydrateFromSession(session);
       return { error };
     } catch (e: any) {
       return {
@@ -149,6 +124,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           message: e?.message ?? 'Failed to sign in',
         },
       };
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -193,6 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
+      setLoading(true);
       await supabase.auth.signOut();
     } finally {
       setUser(null);

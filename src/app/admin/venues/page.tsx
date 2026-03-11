@@ -16,6 +16,10 @@ export default function AdminVenuesPage() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editActive, setEditActive] = useState(true);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [loadingVenues, setLoadingVenues] = useState(true);
 
   useEffect(() => {
@@ -44,6 +48,52 @@ export default function AdminVenuesPage() {
     }
     setVenues(json.data ?? []);
     setLoadingVenues(false);
+  };
+
+  const startEdit = (venue: Venue) => {
+    setEditingId(venue.id);
+    setEditName(venue.name ?? '');
+    setEditActive(venue.is_active ?? true);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditName('');
+    setEditActive(true);
+    setSavingEdit(false);
+  };
+
+  const saveEdit = async (id: string) => {
+    setError('');
+    setSavingEdit(true);
+
+    const patch: any = {
+      is_active: Boolean(editActive),
+    };
+    if (editName.trim()) patch.name = editName.trim();
+
+    const prev = venues;
+    setVenues((v) => v.map((x) => (x.id === id ? ({ ...(x as any), ...patch } as any) : x)));
+
+    try {
+      const res = await fetch(`/api/admin/venues?id=${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error ?? 'Failed to update venue');
+      }
+
+      await fetchVenues();
+      cancelEdit();
+    } catch (e: any) {
+      setVenues(prev);
+      setError(e?.message ?? 'Failed to update venue');
+      setSavingEdit(false);
+    }
   };
 
   const createVenue = async (e: React.FormEvent) => {
@@ -179,22 +229,74 @@ export default function AdminVenuesPage() {
                 <li className="px-6 py-4 text-gray-500">No venues yet.</li>
               ) : (
                 filteredVenues.map((v) => (
-                  <li key={v.id} className="px-6 py-4 flex items-center justify-between">
-                    <div className="font-medium text-gray-900">{v.name}</div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-sm text-gray-500">{v.is_active ? 'Active' : 'Inactive'}</div>
-                      <button
-                        type="button"
-                        disabled={deletingId === v.id}
-                        onClick={() => {
-                          const ok = confirm(`Delete venue ${v.name}?`);
-                          if (ok) deleteVenue(v.id);
-                        }}
-                        className="bg-red-50 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-100 disabled:opacity-50"
-                      >
-                        {deletingId === v.id ? 'Deleting…' : 'Delete'}
-                      </button>
-                    </div>
+                  <li key={v.id} className="px-6 py-4">
+                    {editingId === v.id ? (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <input
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            placeholder="Venue name"
+                            className="border border-gray-300 rounded-md py-2 px-3 md:col-span-2"
+                          />
+                          <div className="flex items-center justify-between gap-3">
+                            <label className="flex items-center gap-2 text-sm text-gray-700">
+                              <input
+                                type="checkbox"
+                                checked={editActive}
+                                onChange={(e) => setEditActive(e.target.checked)}
+                                className="rounded border-gray-300"
+                              />
+                              Active
+                            </label>
+
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                disabled={savingEdit}
+                                onClick={() => saveEdit(v.id)}
+                                className="bg-indigo-600 text-white px-3 py-1 rounded text-sm hover:bg-indigo-700 disabled:opacity-50"
+                              >
+                                {savingEdit ? 'Saving…' : 'Save'}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={savingEdit}
+                                onClick={cancelEdit}
+                                className="bg-gray-300 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-400 disabled:opacity-50"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div className="font-medium text-gray-900">{v.name}</div>
+                        <div className="flex items-center gap-3">
+                          <div className="text-sm text-gray-500">{v.is_active ? 'Active' : 'Inactive'}</div>
+                          <button
+                            type="button"
+                            onClick={() => startEdit(v)}
+                            className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded text-sm hover:bg-indigo-100"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            disabled={deletingId === v.id}
+                            onClick={() => {
+                              const ok = confirm(`Delete venue ${v.name}?`);
+                              if (ok) deleteVenue(v.id);
+                            }}
+                            className="bg-red-50 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-100 disabled:opacity-50"
+                          >
+                            {deletingId === v.id ? 'Deleting…' : 'Delete'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </li>
                 ))
               )}
