@@ -72,6 +72,28 @@ export default function TraineeDashboard() {
     setLoadingAttendance(false);
   };
 
+  const deleteAttendance = async (id: string) => {
+    if (!id) return;
+    setError('');
+    setSuccess('');
+
+    try {
+      const res = await fetch(`/api/attendance?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error ?? 'Failed to delete attendance');
+      }
+
+      setSuccess('Attendance entry deleted.');
+      fetchAttendance();
+    } catch (e: any) {
+      setError(e?.message ?? 'Failed to delete attendance');
+    }
+  };
+
   const getUserLocation = () => {
     if (typeof window !== 'undefined') {
       const insecure = !window.isSecureContext && window.location.hostname !== 'localhost';
@@ -123,10 +145,24 @@ export default function TraineeDashboard() {
   const handleScan = async (result: string) => {
     if (result) {
       try {
-        const parsedData = JSON.parse(result);
-        setScanResult(parsedData);
+        const trimmed = result.trim();
+
+        let token: string | undefined;
+        if (trimmed.startsWith('{')) {
+          const parsed = JSON.parse(trimmed);
+          token = parsed?.token ?? parsed?.qr_token ?? parsed?.qrToken;
+          setScanResult(parsed);
+        } else {
+          token = trimmed;
+          setScanResult({ token });
+        }
+
+        if (!token) {
+          throw new Error('Invalid QR code format');
+        }
+
         setShowScanner(false);
-        await markAttendance(parsedData);
+        await markAttendance({ token });
       } catch (err) {
         setError('Invalid QR code format');
       }
@@ -159,71 +195,28 @@ export default function TraineeDashboard() {
     setSuccess('');
 
     try {
-      // First, verify the QR token and get session details
-      const { data: session, error: sessionError } = await supabase
-        .from('sessions')
-        .select(`
-          *,
-          location:locations(*)
-        `)
-        .eq('qr_token', qrData.token)
-        .eq('is_active', true)
-        .single();
+      const res = await fetch('/api/attendance', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          token: qrData.token,
+          latitude: userLocation?.lat,
+          longitude: userLocation?.lng,
+        }),
+      });
 
-      if (sessionError || !session) {
-        throw new Error('Invalid or inactive session');
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error ?? 'Failed to mark attendance');
       }
 
-      // Check if user has already marked attendance for this session
-      const { data: existingAttendance } = await supabase
-        .from('attendance')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('session_id', (session as any).id)
-        .single();
+      const inserted = json.data as any;
+      const sessionTitle = inserted?.session?.title ?? 'the session';
 
-      if (existingAttendance) {
-        throw new Error('Attendance already marked for this session');
-      }
-
-      // Verify GPS location only when session has a configured location_id
-      if ((session as any).location_id) {
-        if (!userLocation) {
-          throw new Error('Location is required to mark attendance for this session');
-        }
-
-        const { data: isWithinRadius, error: locationError } = await supabase
-          .rpc('is_within_location_radius' as any, {
-            user_lat: userLocation.lat,
-            user_lon: userLocation.lng,
-            location_id: (session as any).location_id,
-          } as any);
-
-        if (locationError) {
-          throw new Error('Error verifying location');
-        }
-
-        if (!isWithinRadius) {
-          throw new Error('You are not within the required location radius');
-        }
-      }
-
-      // Mark attendance
-      const { error: attendanceError } = await supabase
-        .from('attendance')
-        .insert({
-          user_id: user.id,
-          session_id: (session as any).id,
-          latitude: userLocation?.lat ?? 0,
-          longitude: userLocation?.lng ?? 0,
-          verified: true,
-        } as any);
-
-      if (attendanceError) {
-        throw new Error(attendanceError.message);
-      }
-
-      setSuccess(`Attendance marked successfully for ${(session as any).title}`);
+      setSuccess(`Attendance marked successfully for ${sessionTitle}`);
       fetchAttendance();
       setScanResult(null);
     } catch (err: any) {
@@ -367,7 +360,7 @@ export default function TraineeDashboard() {
                             Location: {record.session?.location?.name || 'Unknown'}
                           </p>
                         </div>
-                        <div className="flex items-center">
+                        <div className="flex items-center gap-3">
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                             record.verified 
                               ? 'bg-green-100 text-green-800' 
@@ -375,6 +368,17 @@ export default function TraineeDashboard() {
                           }`}>
                             {record.verified ? 'Verified' : 'Pending'}
                           </span>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const ok = confirm('Delete this attendance entry?');
+                              if (ok) deleteAttendance(record.id);
+                            }}
+                            className="bg-red-50 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-100"
+                          >
+                            Delete
+                          </button>
                         </div>
                       </div>
                     </li>

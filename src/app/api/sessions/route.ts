@@ -8,6 +8,38 @@ export async function GET(request: NextRequest) {
     const trainerId = searchParams.get('trainer_id');
     const date = searchParams.get('date');
 
+    // Auto-close expired sessions (best-effort)
+    try {
+      let expireQuery = supabaseAdmin
+        .from('sessions')
+        .select('id, date, end_time')
+        .eq('is_active', true);
+
+      if (trainerId) {
+        expireQuery = expireQuery.eq('trainer_id', trainerId);
+      }
+
+      const { data: activeSessions, error: activeErr } = await expireQuery;
+      if (!activeErr && Array.isArray(activeSessions) && activeSessions.length > 0) {
+        const now = Date.now();
+        const expiredIds: string[] = [];
+
+        for (const s of activeSessions as any[]) {
+          if (!s?.date || !s?.end_time) continue;
+          const endAt = new Date(`${s.date}T${s.end_time}`);
+          if (!Number.isNaN(endAt.getTime()) && now > endAt.getTime()) {
+            expiredIds.push(s.id);
+          }
+        }
+
+        if (expiredIds.length) {
+          await (supabaseAdmin as any).from('sessions').update({ is_active: false } as any).in('id', expiredIds);
+        }
+      }
+    } catch {
+      // ignore expiry errors
+    }
+
     let query = supabaseAdmin
       .from('sessions')
       .select(`

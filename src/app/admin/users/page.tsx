@@ -12,12 +12,14 @@ export default function AdminUsersPage() {
   const router = useRouter();
 
   const [trainers, setTrainers] = useState<User[]>([]);
+  const [search, setSearch] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [loadingUsers, setLoadingUsers] = useState(true);
 
   useEffect(() => {
@@ -75,7 +77,31 @@ export default function AdminUsersPage() {
     setSaving(false);
   };
 
-  if (loading || loadingUsers) {
+  const deleteTrainer = async (id: string) => {
+    if (!id) return;
+    setError('');
+    setSuccess('');
+    setDeletingId(id);
+
+    const prev = trainers;
+    setTrainers((t) => t.filter((x) => x.id !== id));
+
+    try {
+      const res = await fetch(`/api/admin/users?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error ?? 'Failed to delete user');
+      }
+      setSuccess('User deleted.');
+    } catch (e: any) {
+      setTrainers(prev);
+      setError(e?.message ?? 'Failed to delete user');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600"></div>
@@ -86,6 +112,15 @@ export default function AdminUsersPage() {
   if (!user || user.role !== 'admin') {
     return null;
   }
+
+  const filtered = trainers.filter((t) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      (t.name ?? '').toLowerCase().includes(q) ||
+      (t.email ?? '').toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -159,19 +194,46 @@ export default function AdminUsersPage() {
 
           <div className="bg-white shadow rounded-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-medium text-gray-900">Trainers</h2>
+              <div className="flex items-center justify-between gap-4">
+                <h2 className="text-lg font-medium text-gray-900">Trainers</h2>
+                {loadingUsers && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+                    Loading…
+                  </div>
+                )}
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search trainers…"
+                  className="w-full max-w-xs border border-gray-300 rounded-md py-2 px-3"
+                />
+              </div>
             </div>
             <ul className="divide-y divide-gray-200">
-              {trainers.length === 0 ? (
+              {filtered.length === 0 ? (
                 <li className="px-6 py-4 text-gray-500">No trainers found.</li>
               ) : (
-                trainers.map((t) => (
+                filtered.map((t) => (
                   <li key={t.id} className="px-6 py-4 flex items-center justify-between">
                     <div>
                       <div className="font-medium text-gray-900">{t.name}</div>
                       <div className="text-sm text-gray-600">{t.email}</div>
                     </div>
-                    <div className="text-sm text-gray-500">Role: {t.role}</div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-sm text-gray-500">Role: {t.role}</div>
+                      <button
+                        type="button"
+                        disabled={deletingId === t.id}
+                        onClick={() => {
+                          const ok = confirm(`Delete user ${t.email}?`);
+                          if (ok) deleteTrainer(t.id);
+                        }}
+                        className="bg-red-50 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-100 disabled:opacity-50"
+                      >
+                        {deletingId === t.id ? 'Deleting…' : 'Delete'}
+                      </button>
+                    </div>
                   </li>
                 ))
               )}

@@ -66,6 +66,20 @@ export default function ReportsPage() {
     }
   };
 
+  const deleteAttendance = async (id: string) => {
+    if (!id) return;
+    try {
+      const res = await fetch(`/api/attendance?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error ?? 'Failed to delete attendance');
+      }
+      fetchReports();
+    } catch (e: any) {
+      setReportsError(e?.message ?? 'Failed to delete attendance');
+    }
+  };
+
   const fetchUsers = async () => {
     const { data, error } = await supabase
       .from('users')
@@ -141,7 +155,7 @@ export default function ReportsPage() {
     });
   };
 
-  if (loading || loadingReports) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600"></div>
@@ -185,7 +199,15 @@ export default function ReportsPage() {
         <div className="px-4 py-6 sm:px-0">
           {/* Filters */}
           <div className="bg-white shadow rounded-lg p-6 mb-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">Filters</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-medium text-gray-900">Filters</h2>
+              {loadingReports && (
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+                  Loading…
+                </div>
+              )}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -251,12 +273,14 @@ export default function ReportsPage() {
             <div className="mt-4 flex space-x-3">
               <button
                 onClick={applyFilters}
+                disabled={loadingReports}
                 className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
               >
                 Apply Filters
               </button>
               <button
                 onClick={clearFilters}
+                disabled={loadingReports}
                 className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
               >
                 Clear Filters
@@ -315,6 +339,9 @@ export default function ReportsPage() {
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Location Verified
                             </th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Actions
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
@@ -339,6 +366,18 @@ export default function ReportsPage() {
                                 >
                                   {attendance.verified ? 'Yes' : 'No'}
                                 </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const ok = confirm('Delete this attendance entry?');
+                                    if (ok) deleteAttendance(attendance.id);
+                                  }}
+                                  className="bg-red-50 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-100"
+                                >
+                                  Delete
+                                </button>
                               </td>
                             </tr>
                           ))}

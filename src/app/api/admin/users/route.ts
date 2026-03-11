@@ -96,3 +96,37 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  const gate = await requireAdmin(request);
+  if (!gate.ok) return gate.response;
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) {
+      return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
+    }
+
+    const { error: profileDeleteError } = await (supabaseAdmin as any)
+      .from('users')
+      .delete()
+      .eq('id', id);
+
+    if (profileDeleteError) {
+      return NextResponse.json({ success: false, error: profileDeleteError.message }, { status: 500 });
+    }
+
+    const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(id);
+    if (authDeleteError) {
+      return NextResponse.json({ success: false, error: authDeleteError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (e: any) {
+    return NextResponse.json(
+      { success: false, error: e?.message ?? 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}

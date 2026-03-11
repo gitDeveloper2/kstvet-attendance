@@ -11,9 +11,11 @@ export default function AdminVenuesPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [venues, setVenues] = useState<Venue[]>([]);
+  const [search, setSearch] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [loadingVenues, setLoadingVenues] = useState(true);
 
   useEffect(() => {
@@ -67,7 +69,28 @@ export default function AdminVenuesPage() {
     setSaving(false);
   };
 
-  if (loading || loadingVenues) {
+  const deleteVenue = async (id: string) => {
+    if (!id) return;
+    setError('');
+    setDeletingId(id);
+    const prev = venues;
+    setVenues((v) => v.filter((x) => x.id !== id));
+
+    try {
+      const res = await fetch(`/api/admin/venues?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error ?? 'Failed to delete venue');
+      }
+    } catch (e: any) {
+      setVenues(prev);
+      setError(e?.message ?? 'Failed to delete venue');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600"></div>
@@ -78,6 +101,12 @@ export default function AdminVenuesPage() {
   if (!user || user.role !== 'admin') {
     return null;
   }
+
+  const filteredVenues = venues.filter((v) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return (v.name ?? '').toLowerCase().includes(q);
+  });
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -129,16 +158,43 @@ export default function AdminVenuesPage() {
 
           <div className="bg-white shadow rounded-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-medium text-gray-900">Existing Venues</h2>
+              <div className="flex items-center justify-between gap-4">
+                <h2 className="text-lg font-medium text-gray-900">Existing Venues</h2>
+                {loadingVenues && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+                    Loading…
+                  </div>
+                )}
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search venues…"
+                  className="w-full max-w-xs border border-gray-300 rounded-md py-2 px-3"
+                />
+              </div>
             </div>
             <ul className="divide-y divide-gray-200">
-              {venues.length === 0 ? (
+              {filteredVenues.length === 0 ? (
                 <li className="px-6 py-4 text-gray-500">No venues yet.</li>
               ) : (
-                venues.map((v) => (
+                filteredVenues.map((v) => (
                   <li key={v.id} className="px-6 py-4 flex items-center justify-between">
                     <div className="font-medium text-gray-900">{v.name}</div>
-                    <div className="text-sm text-gray-500">{v.is_active ? 'Active' : 'Inactive'}</div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-sm text-gray-500">{v.is_active ? 'Active' : 'Inactive'}</div>
+                      <button
+                        type="button"
+                        disabled={deletingId === v.id}
+                        onClick={() => {
+                          const ok = confirm(`Delete venue ${v.name}?`);
+                          if (ok) deleteVenue(v.id);
+                        }}
+                        className="bg-red-50 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-100 disabled:opacity-50"
+                      >
+                        {deletingId === v.id ? 'Deleting…' : 'Delete'}
+                      </button>
+                    </div>
                   </li>
                 ))
               )}

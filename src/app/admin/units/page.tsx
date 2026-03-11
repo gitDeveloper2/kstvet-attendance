@@ -11,10 +11,12 @@ export default function AdminUnitsPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [units, setUnits] = useState<Unit[]>([]);
+  const [search, setSearch] = useState('');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [loadingUnits, setLoadingUnits] = useState(true);
 
   useEffect(() => {
@@ -69,7 +71,29 @@ export default function AdminUnitsPage() {
     setSaving(false);
   };
 
-  if (loading || loadingUnits) {
+  const deleteUnit = async (id: string) => {
+    if (!id) return;
+    setError('');
+    setDeletingId(id);
+
+    const prev = units;
+    setUnits((u) => u.filter((x) => x.id !== id));
+
+    try {
+      const res = await fetch(`/api/admin/units?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error ?? 'Failed to delete unit');
+      }
+    } catch (e: any) {
+      setUnits(prev);
+      setError(e?.message ?? 'Failed to delete unit');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600"></div>
@@ -80,6 +104,12 @@ export default function AdminUnitsPage() {
   if (!user || user.role !== 'admin') {
     return null;
   }
+
+  const filteredUnits = units.filter((u) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return (u.code ?? '').toLowerCase().includes(q) || (u.name ?? '').toLowerCase().includes(q);
+  });
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -138,19 +168,46 @@ export default function AdminUnitsPage() {
 
           <div className="bg-white shadow rounded-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-medium text-gray-900">Existing Units</h2>
+              <div className="flex items-center justify-between gap-4">
+                <h2 className="text-lg font-medium text-gray-900">Existing Units</h2>
+                {loadingUnits && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+                    Loading…
+                  </div>
+                )}
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search units…"
+                  className="w-full max-w-xs border border-gray-300 rounded-md py-2 px-3"
+                />
+              </div>
             </div>
             <ul className="divide-y divide-gray-200">
-              {units.length === 0 ? (
+              {filteredUnits.length === 0 ? (
                 <li className="px-6 py-4 text-gray-500">No units yet.</li>
               ) : (
-                units.map((u) => (
+                filteredUnits.map((u) => (
                   <li key={u.id} className="px-6 py-4 flex items-center justify-between">
                     <div>
                       <div className="font-medium text-gray-900">{u.code}</div>
                       <div className="text-sm text-gray-600">{u.name}</div>
                     </div>
-                    <div className="text-sm text-gray-500">{u.is_active ? 'Active' : 'Inactive'}</div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-sm text-gray-500">{u.is_active ? 'Active' : 'Inactive'}</div>
+                      <button
+                        type="button"
+                        disabled={deletingId === u.id}
+                        onClick={() => {
+                          const ok = confirm(`Delete unit ${u.code}?`);
+                          if (ok) deleteUnit(u.id);
+                        }}
+                        className="bg-red-50 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-100 disabled:opacity-50"
+                      >
+                        {deletingId === u.id ? 'Deleting…' : 'Delete'}
+                      </button>
+                    </div>
                   </li>
                 ))
               )}

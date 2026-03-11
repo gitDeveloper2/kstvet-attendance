@@ -17,6 +17,8 @@ export default function AdminAssignmentsPage() {
   const [unitId, setUnitId] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [deletingKey, setDeletingKey] = useState<string | null>(null);
   const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
@@ -42,8 +44,11 @@ export default function AdminAssignmentsPage() {
       fetch('/api/admin/units'),
     ]);
 
+    const assignmentsRes = await fetch('/api/admin/trainer-units');
+
     const usersJson = await usersRes.json().catch(() => null);
     const unitsJson = await unitsRes.json().catch(() => null);
+    const assignmentsJson = await assignmentsRes.json().catch(() => null);
 
     if (!usersRes.ok || !usersJson?.success) {
       setError(usersJson?.error ?? 'Failed to load trainers');
@@ -57,8 +62,15 @@ export default function AdminAssignmentsPage() {
       return;
     }
 
+    if (!assignmentsRes.ok || !assignmentsJson?.success) {
+      setError(assignmentsJson?.error ?? 'Failed to load assignments');
+      setLoadingData(false);
+      return;
+    }
+
     setTrainers(usersJson.data ?? []);
     setUnits(unitsJson.data ?? []);
+    setAssignments(assignmentsJson.data ?? []);
     setLoadingData(false);
   };
 
@@ -94,10 +106,35 @@ export default function AdminAssignmentsPage() {
 
     setTrainerId('');
     setUnitId('');
+    await fetchData();
     setSaving(false);
   };
 
-  if (loading || loadingData) {
+  const deleteAssignment = async (trainer_id: string, unit_id: string) => {
+    const key = `${trainer_id}:${unit_id}`;
+    setError('');
+    setDeletingKey(key);
+    const prev = assignments;
+    setAssignments((a) => a.filter((x) => !(x.trainer_id === trainer_id && x.unit_id === unit_id)));
+
+    try {
+      const res = await fetch(
+        `/api/admin/trainer-units?trainer_id=${encodeURIComponent(trainer_id)}&unit_id=${encodeURIComponent(unit_id)}`,
+        { method: 'DELETE' }
+      );
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error ?? 'Failed to delete assignment');
+      }
+    } catch (e: any) {
+      setAssignments(prev);
+      setError(e?.message ?? 'Failed to delete assignment');
+    } finally {
+      setDeletingKey(null);
+    }
+  };
+
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600"></div>
@@ -138,7 +175,15 @@ export default function AdminAssignmentsPage() {
           )}
 
           <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">Assign Trainer to Unit</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-medium text-gray-900">Assign Trainer to Unit</h2>
+              {loadingData && (
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+                  Loading…
+                </div>
+              )}
+            </div>
             <form onSubmit={assign} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Trainer</label>
@@ -192,6 +237,52 @@ export default function AdminAssignmentsPage() {
                 {saving ? 'Assigning…' : 'Assign'}
               </button>
             </form>
+          </div>
+
+          <div className="bg-white shadow rounded-lg overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-medium text-gray-900">Current Assignments</h2>
+                {loadingData && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+                    Loading…
+                  </div>
+                )}
+              </div>
+            </div>
+            <ul className="divide-y divide-gray-200">
+              {assignments.length === 0 ? (
+                <li className="px-6 py-4 text-gray-500">No assignments yet.</li>
+              ) : (
+                assignments.map((a: any) => {
+                  const key = `${a.trainer_id}:${a.unit_id}`;
+                  return (
+                    <li key={key} className="px-6 py-4 flex items-center justify-between">
+                      <div>
+                        <div className="font-medium text-gray-900">
+                          {a.trainer?.name ?? 'Trainer'} ({a.trainer?.email ?? '—'})
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {a.unit?.code ?? '—'} - {a.unit?.name ?? '—'}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={deletingKey === key}
+                        onClick={() => {
+                          const ok = confirm('Remove this assignment?');
+                          if (ok) deleteAssignment(a.trainer_id, a.unit_id);
+                        }}
+                        className="bg-red-50 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-100 disabled:opacity-50"
+                      >
+                        {deletingKey === key ? 'Removing…' : 'Remove'}
+                      </button>
+                    </li>
+                  );
+                })
+              )}
+            </ul>
           </div>
         </div>
       </main>

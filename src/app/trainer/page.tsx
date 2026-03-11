@@ -40,23 +40,16 @@ export default function TrainerDashboard() {
       return;
     }
 
-    const { data, error } = await supabase
-      .from('sessions')
-      .select(`
-        *,
-        location:locations(*),
-        unit:units(*),
-        venue:venues(*),
-        trainer:users(name, email)
-      `)
-      .eq('trainer_id', user.id)
-      .order('date', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching sessions:', error);
-    } else {
-      setSessions(data || []);
+    const res = await fetch(`/api/sessions?trainer_id=${encodeURIComponent(user.id)}`);
+    const json = await res.json().catch(() => null);
+    if (!res.ok || !json?.success) {
+      console.error('Error fetching sessions:', json?.error ?? 'Unknown error');
+      setSessions([]);
+      setLoadingSessions(false);
+      return;
     }
+
+    setSessions(json.data || []);
     setLoadingSessions(false);
   };
 
@@ -242,8 +235,9 @@ function QRCodeDisplay({ qrToken, sessionTitle }: { qrToken: string; sessionTitl
 
   useEffect(() => {
     // Generate QR code using a simple API or library
-    const qrData = JSON.stringify({ token: qrToken, sessionId: sessionTitle });
-    setQrCodeUrl(`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrData)}`);
+    setQrCodeUrl(
+      `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrToken)}`
+    );
   }, [qrToken, sessionTitle]);
 
   return (
