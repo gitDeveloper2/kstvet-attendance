@@ -71,30 +71,6 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    const trainerGate = await requireRole(request, 'trainer');
-    if (trainerGate.ok) {
-      const { data: row, error: rowError } = await supabaseAdmin
-        .from('attendance')
-        .select('id, session_id, sessions!inner(trainer_id)')
-        .eq('id', id)
-        .eq('sessions.trainer_id', trainerGate.userId)
-        .maybeSingle();
-
-      if (rowError) {
-        return NextResponse.json({ success: false, error: rowError.message }, { status: 500 });
-      }
-
-      if (!row) {
-        return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
-      }
-
-      const { error } = await (supabaseAdmin as any).from('attendance').delete().eq('id', id);
-      if (error) {
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-      }
-      return NextResponse.json({ success: true });
-    }
-
     const traineeGate = await requireRole(request, 'trainee');
     if (traineeGate.ok) {
       const { data: row, error: rowError } = await supabaseAdmin

@@ -339,9 +339,6 @@ export default function ReportsPage() {
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Location Verified
                             </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Actions
-                            </th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
@@ -366,18 +363,6 @@ export default function ReportsPage() {
                                 >
                                   {attendance.verified ? 'Yes' : 'No'}
                                 </span>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-right">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const ok = confirm('Uncheck (remove) this attendance entry?');
-                                    if (ok) deleteAttendance(attendance.id);
-                                  }}
-                                  className="bg-red-50 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-100"
-                                >
-                                  Uncheck
-                                </button>
                               </td>
                             </tr>
                           ))}
