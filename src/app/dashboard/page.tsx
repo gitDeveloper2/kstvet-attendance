@@ -1,40 +1,43 @@
-'use client';
-
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 import LogoutButton from '@/components/LogoutButton';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { getPublicEnv } from '@/lib/env';
 
-export default function DashboardPage() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
+export default async function DashboardPage() {
+  const cookieStore = await cookies();
+  const { supabaseUrl, supabaseAnonKey } = getPublicEnv();
 
-  useEffect(() => {
-    if (!loading) {
-      if (!user) {
-        router.push('/login');
-      }
-    }
-  }, [user, loading, router]);
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      get(name: string) {
+        return cookieStore.get(name)?.value;
+      },
+      set() {
+        // no-op in server component
+      },
+      remove() {
+        // no-op in server component
+      },
+    },
+  });
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600"></div>
-          <div className="text-gray-700">Loading your account…</div>
-        </div>
-      </div>
-    );
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.user) {
+    redirect('/login');
   }
 
-  if (!user) {
-    return null;
-  }
+  const meta = (session.user.user_metadata ?? {}) as any;
+  const role = (meta?.role ?? 'trainee') as 'admin' | 'trainer' | 'trainee';
+  const name = (meta?.name ?? '') as string;
+  const email = (session.user.email ?? '') as string;
 
   const cards: { href: string; title: string; description: string }[] =
-    user.role === 'admin'
+    role === 'admin'
       ? [
           { href: '/admin', title: 'Admin Panel', description: 'Manage units, venues, users, and assignments' },
           { href: '/admin/units', title: 'Units', description: 'Create and manage semester units' },
@@ -42,7 +45,7 @@ export default function DashboardPage() {
           { href: '/admin/assignments', title: 'Assignments', description: 'Assign trainers to units' },
           { href: '/admin/users', title: 'Users', description: 'Create lecturer accounts and manage roles' },
         ]
-      : user.role === 'trainer'
+      : role === 'trainer'
         ? [
             { href: '/trainer', title: 'Trainer Dashboard', description: 'Create sessions and manage attendance' },
             { href: '/reports', title: 'Reports', description: 'View attendance reports for your sessions' },
@@ -67,11 +70,11 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center gap-3 sm:gap-4">
               <span className="hidden sm:inline-flex px-2 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800">
-                {user.role}
+                {role}
               </span>
               <div className="hidden sm:block text-right">
-                <div className="text-gray-900 text-sm font-medium">{user.name}</div>
-                <div className="text-gray-500 text-xs">{user.email}</div>
+                <div className="text-gray-900 text-sm font-medium">{name}</div>
+                <div className="text-gray-500 text-xs">{email}</div>
               </div>
               <LogoutButton />
             </div>
@@ -83,7 +86,7 @@ export default function DashboardPage() {
         <div className="px-4 py-6 sm:px-0">
           <div className="mb-6">
             <div className="text-sm text-gray-600">Signed in as</div>
-            <div className="text-lg font-medium text-gray-900">{user.email}</div>
+            <div className="text-lg font-medium text-gray-900">{email}</div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -66,20 +66,6 @@ export default function ReportsPage() {
     }
   };
 
-  const deleteAttendance = async (id: string) => {
-    if (!id) return;
-    try {
-      const res = await fetch(`/api/attendance?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
-      const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.success) {
-        throw new Error(json?.error ?? 'Failed to delete attendance');
-      }
-      fetchReports();
-    } catch (e: any) {
-      setReportsError(e?.message ?? 'Failed to delete attendance');
-    }
-  };
-
   const fetchUsers = async () => {
     const { data, error } = await supabase
       .from('users')

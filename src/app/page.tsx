@@ -1,40 +1,33 @@
-'use client';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { getPublicEnv } from '@/lib/env';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
+export default async function Home() {
+  const cookieStore = await cookies();
+  const { supabaseUrl, supabaseAnonKey } = getPublicEnv();
 
-export default function Home() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      get(name: string) {
+        return cookieStore.get(name)?.value;
+      },
+      set() {
+        // no-op in server component
+      },
+      remove() {
+        // no-op in server component
+      },
+    },
+  });
 
-  useEffect(() => {
-    if (loading) return;
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
-    if (user) {
-      router.replace('/dashboard');
-    } else {
-      router.replace('/login');
-    }
-  }, [user, loading, router]);
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Loading...</p>
-        </div>
-      </div>
-    );
+  if (session?.user) {
+    redirect('/dashboard');
   }
 
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Redirecting...</p>
-      </div>
-    </div>
-  );
+  redirect('/login');
 }
