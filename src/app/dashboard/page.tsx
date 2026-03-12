@@ -34,7 +34,8 @@ export default async function DashboardPage() {
   const meta = (session.user.user_metadata ?? {}) as any;
   const email = (session.user.email ?? '') as string;
 
-  let role = (meta?.role ?? 'trainee') as 'admin' | 'trainer' | 'trainee';
+  const metaRole = (meta?.role ?? 'trainee') as 'admin' | 'trainer' | 'trainee';
+  let role = metaRole;
   let name = (meta?.name ?? '') as string;
 
   try {
@@ -45,8 +46,13 @@ export default async function DashboardPage() {
       .maybeSingle();
 
     if (!error && profile) {
-      role = ((profile as any).role ?? role) as any;
-      name = ((profile as any).name ?? name) as any;
+      const profileRole = (profile as any).role as 'admin' | 'trainer' | 'trainee' | undefined;
+      if (metaRole === 'admin' || profileRole === 'admin') {
+        role = 'admin';
+      } else {
+        role = (profileRole ?? metaRole) as any;
+      }
+      name = (((profile as any).name ?? name) as any) ?? name;
     }
   } catch {
     // ignore and keep metadata fallback

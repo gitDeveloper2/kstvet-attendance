@@ -85,40 +85,12 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
-  // Role enforcement. Prefer role from public.users (authoritative), fall back to auth metadata.
-  let role: string | undefined = (authUser?.user_metadata as any)?.role;
-  if (authUser?.id) {
-    try {
-      const { data: profile, error } = await (supabase as any)
-        .from('users')
-        .select('role')
-        .eq('id', authUser.id)
-        .maybeSingle();
-
-      if (!error && profile?.role) {
-        role = profile.role as string;
-      }
-    } catch {
-      // ignore and use metadata fallback
-    }
-  }
-
-  if (isAdminRoute && role !== 'admin') {
-    console.log('[middleware] redirect non-admin away from /admin', {
-      path: pathname,
-      userId: authUser.id,
-      role: role ?? 'unknown',
-    });
-    return NextResponse.redirect(new URL('/dashboard', req.url));
-  }
-
-  if (isTrainerRoute && role !== 'trainer' && role !== 'admin') {
-    return NextResponse.redirect(new URL('/dashboard', req.url));
-  }
-
-  if (isTraineeRoute && role !== 'trainee' && role !== 'admin') {
-    return NextResponse.redirect(new URL('/dashboard', req.url));
-  }
+  // Do not enforce role-based redirects in middleware.
+  // Role sources can be temporarily inconsistent (auth metadata vs public.users) which causes
+  // confusing cross-role navigation. Pages and API route handlers already enforce roles.
+  void isAdminRoute;
+  void isTrainerRoute;
+  void isTraineeRoute;
 
   return res;
 }

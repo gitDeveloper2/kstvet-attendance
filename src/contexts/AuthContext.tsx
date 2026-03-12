@@ -61,6 +61,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Set a best-effort user immediately from auth metadata.
     setUser(fallbackUser);
 
+    // Prefer authoritative role/name from server (combines Auth metadata + public.users).
+    void (async () => {
+      try {
+        const mePromise = fetch('/api/me', { method: 'GET' }) as any as Promise<any>;
+        const meRes = await withTimeout(mePromise, 6000);
+        const meJson = await meRes.json().catch(() => null);
+
+        if (hydrateSeq.current !== seq) {
+          return;
+        }
+
+        if (!meRes.ok || !meJson?.ok || !meJson?.user) {
+          return;
+        }
+
+        const meUser = meJson.user as any;
+        if (!meUser?.id) return;
+
+        setUser((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            role: (meUser.role ?? prev.role) as any,
+            name: (meUser.name ?? prev.name) as any,
+            email: (meUser.email ?? prev.email) as any,
+          };
+        });
+      } catch {
+        // ignore and keep existing user state
+      }
+    })();
+
     // Fetch user profile from our users table
     void (async () => {
       try {
@@ -83,10 +115,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
+        const profileRole = (profile as any)?.role as string | undefined;
+        const metaRole = meta?.role as string | undefined;
+
         const merged: User = {
           ...(profile as any),
-          role: (meta?.role ?? (profile as any)?.role ?? 'trainee') as any,
-          name: meta?.name ?? (profile as any)?.name ?? '',
+          role: ((metaRole === 'admin' ? 'admin' : (profileRole ?? metaRole ?? 'trainee')) as any),
+          name: ((profile as any)?.name ?? meta?.name ?? '') as any,
         };
         setUser(merged);
       } catch (e: any) {
