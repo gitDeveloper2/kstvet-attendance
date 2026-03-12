@@ -15,6 +15,7 @@ export default function TraineeDashboard() {
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [showScanner, setShowScanner] = useState(false);
   const [loadingAttendance, setLoadingAttendance] = useState(true);
+  const [uncheckingAttendanceId, setUncheckingAttendanceId] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<any>(null);
   const [manualCode, setManualCode] = useState('');
   const [markingAttendance, setMarkingAttendance] = useState(false);
@@ -66,6 +67,7 @@ export default function TraineeDashboard() {
 
     if (error) {
       console.error('Error fetching attendance:', error);
+      setError('Failed to load attendance records');
     } else {
       setAttendance(data || []);
     }
@@ -76,6 +78,10 @@ export default function TraineeDashboard() {
     if (!id) return;
     setError('');
     setSuccess('');
+    setUncheckingAttendanceId(id);
+
+    // Optimistic: remove locally so the UI and any "already checked" assumptions update immediately.
+    setAttendance((prev) => prev.filter((r) => r.id !== id));
 
     try {
       const res = await fetch(`/api/attendance?id=${encodeURIComponent(id)}`, {
@@ -84,13 +90,17 @@ export default function TraineeDashboard() {
       const json = await res.json().catch(() => null);
 
       if (!res.ok || !json?.success) {
+        // Re-sync if delete failed
+        await fetchAttendance();
         throw new Error(json?.error ?? 'Failed to delete attendance');
       }
 
       setSuccess('Attendance entry unchecked.');
-      fetchAttendance();
+      await fetchAttendance();
     } catch (e: any) {
       setError(e?.message ?? 'Failed to delete attendance');
+    } finally {
+      setUncheckingAttendanceId((current) => (current === id ? null : current));
     }
   };
 
@@ -190,6 +200,11 @@ export default function TraineeDashboard() {
       return;
     }
 
+    if (uncheckingAttendanceId) {
+      setError('Please wait for the uncheck to finish, then try again.');
+      return;
+    }
+
     setMarkingAttendance(true);
     setError('');
     setSuccess('');
@@ -217,7 +232,7 @@ export default function TraineeDashboard() {
       const sessionTitle = inserted?.session?.title ?? 'the session';
 
       setSuccess(`Attendance marked successfully for ${sessionTitle}`);
-      fetchAttendance();
+      await fetchAttendance();
       setScanResult(null);
     } catch (err: any) {
       setError(err.message || 'Failed to mark attendance');
@@ -305,7 +320,7 @@ export default function TraineeDashboard() {
                   />
                   <button
                     onClick={handleManualSubmit}
-                    disabled={markingAttendance}
+                    disabled={markingAttendance || !!uncheckingAttendanceId}
                     className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 w-full sm:w-auto"
                     type="button"
                   >
@@ -320,7 +335,7 @@ export default function TraineeDashboard() {
               {!showScanner ? (
                 <button
                   onClick={() => setShowScanner(true)}
-                  disabled={!userLocation || markingAttendance}
+                  disabled={!userLocation || markingAttendance || !!uncheckingAttendanceId}
                   className="w-full bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50"
                 >
                   {markingAttendance ? 'Processing...' : 'Scan QR Code'}
@@ -392,9 +407,10 @@ export default function TraineeDashboard() {
                               const ok = confirm('Uncheck (remove) this attendance entry?');
                               if (ok) deleteAttendance(record.id);
                             }}
-                            className="bg-red-50 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-100"
+                            disabled={!!uncheckingAttendanceId}
+                            className="bg-red-50 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-100 disabled:opacity-50"
                           >
-                            Uncheck
+                            {uncheckingAttendanceId === record.id ? 'Unchecking…' : 'Uncheck'}
                           </button>
                         </div>
                       </div>
