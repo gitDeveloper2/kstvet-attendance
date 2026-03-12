@@ -165,6 +165,12 @@ export default function TrainerDashboard() {
             </div>
             <div className="flex items-center gap-2 sm:gap-4">
               <Link
+                href="/dashboard"
+                className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+              >
+                Dashboard
+              </Link>
+              <Link
                 href="/reports"
                 className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
               >

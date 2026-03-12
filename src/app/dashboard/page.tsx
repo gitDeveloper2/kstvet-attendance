@@ -32,9 +32,25 @@ export default async function DashboardPage() {
   }
 
   const meta = (session.user.user_metadata ?? {}) as any;
-  const role = (meta?.role ?? 'trainee') as 'admin' | 'trainer' | 'trainee';
-  const name = (meta?.name ?? '') as string;
   const email = (session.user.email ?? '') as string;
+
+  let role = (meta?.role ?? 'trainee') as 'admin' | 'trainer' | 'trainee';
+  let name = (meta?.name ?? '') as string;
+
+  try {
+    const { data: profile, error } = await supabase
+      .from('users')
+      .select('role, name')
+      .eq('id', session.user.id)
+      .maybeSingle();
+
+    if (!error && profile) {
+      role = ((profile as any).role ?? role) as any;
+      name = ((profile as any).name ?? name) as any;
+    }
+  } catch {
+    // ignore and keep metadata fallback
+  }
 
   const cards: {
     href: string;
