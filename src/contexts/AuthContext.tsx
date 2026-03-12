@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { User } from '@/types';
 
@@ -22,46 +22,83 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const hydrateSeq = useRef(0);
+
+  const withTimeout = async <T,>(promise: Promise<T>, ms: number): Promise<T> => {
+    return new Promise<T>((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('timeout')), ms);
+      promise
+        .then((v) => {
+          clearTimeout(t);
+          resolve(v);
+        })
+        .catch((e) => {
+          clearTimeout(t);
+          reject(e);
+        });
+    });
+  };
 
   const hydrateFromSession = async (session: any) => {
+    const seq = ++hydrateSeq.current;
+
     if (!session?.user) {
       setUser(null);
       return;
     }
 
-    // Fetch user profile from our users table
-    const { data: profile, error: profileError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', session.user.id)
-      .single();
-
     const meta = (session.user.user_metadata ?? {}) as any;
-
-    if (profileError) {
-      console.log('[auth] users profile fetch error, falling back to auth metadata', {
-        error: profileError.message,
-      });
-
-      const fallbackUser: User = {
-        id: session.user.id,
-        email: session.user.email ?? '',
-        name: meta?.name ?? '',
-        role: (meta?.role ?? 'trainee') as any,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      setUser(fallbackUser);
-      return;
-    }
-
-    const merged: User = {
-      ...(profile as any),
-      role: (meta?.role ?? (profile as any)?.role ?? 'trainee') as any,
-      name: meta?.name ?? (profile as any)?.name ?? '',
+    const fallbackUser: User = {
+      id: session.user.id,
+      email: session.user.email ?? '',
+      name: meta?.name ?? '',
+      role: (meta?.role ?? 'trainee') as any,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
-    setUser(merged);
+
+    // Do not block rendering on a potentially slow/hanging profile request.
+    // Set a best-effort user immediately from auth metadata.
+    setUser(fallbackUser);
+
+    // Fetch user profile from our users table
+    void (async () => {
+      try {
+        const profilePromise = supabase
+          .from('users')
+          .select('*')
+          .eq('id', session.user.id)
+          .single() as any as Promise<{ data: any; error: any }>;
+
+        const { data: profile, error: profileError } = await withTimeout(profilePromise, 6000);
+
+        if (hydrateSeq.current !== seq) {
+          return;
+        }
+
+        if (profileError) {
+          console.log('[auth] users profile fetch error, falling back to auth metadata', {
+            error: profileError.message,
+          });
+          return;
+        }
+
+        const merged: User = {
+          ...(profile as any),
+          role: (meta?.role ?? (profile as any)?.role ?? 'trainee') as any,
+          name: meta?.name ?? (profile as any)?.name ?? '',
+        };
+        setUser(merged);
+      } catch (e: any) {
+        if (hydrateSeq.current !== seq) {
+          return;
+        }
+
+        console.log('[auth] users profile fetch timed out or failed; using auth metadata', {
+          error: e?.message ?? String(e),
+        });
+      }
+    })();
   };
 
   useEffect(() => {
