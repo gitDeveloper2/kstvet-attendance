@@ -12,6 +12,8 @@ export default function TrainerDashboard() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [sessionSearch, setSessionSearch] = useState('');
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [unitsError, setUnitsError] = useState<string>('');
@@ -51,6 +53,33 @@ export default function TrainerDashboard() {
 
     setSessions(json.data || []);
     setLoadingSessions(false);
+  };
+
+  const deleteSession = async (id: string) => {
+    if (!id) return;
+    if (deletingSessionId) return;
+
+    const ok = confirm('Delete this attendance session? This will remove all attendance records in the session.');
+    if (!ok) return;
+
+    setDeletingSessionId(id);
+
+    const prev = sessions;
+    setSessions((s) => s.filter((x) => x.id !== id));
+
+    try {
+      const res = await fetch(`/api/sessions?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error ?? 'Failed to delete session');
+      }
+      await fetchSessions();
+    } catch (e: any) {
+      setSessions(prev);
+      alert(e?.message ?? 'Failed to delete session');
+    } finally {
+      setDeletingSessionId((current) => (current === id ? null : current));
+    }
   };
 
   const fetchLocations = async () => {
@@ -103,6 +132,23 @@ export default function TrainerDashboard() {
     return null;
   }
 
+  const filteredSessions = sessions.filter((s) => {
+    const q = sessionSearch.trim().toLowerCase();
+    if (!q) return true;
+    const title = (s.title ?? '').toLowerCase();
+    const code = ((s.unit as any)?.code ?? '').toLowerCase();
+    const venue = (s.venue?.name ?? '').toLowerCase();
+    const location = (s.location?.name ?? (s as any).location_name ?? '').toLowerCase();
+    const date = (s.date ?? '').toLowerCase();
+    return (
+      title.includes(q) ||
+      code.includes(q) ||
+      venue.includes(q) ||
+      location.includes(q) ||
+      date.includes(q)
+    );
+  });
+
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white shadow">
@@ -143,6 +189,15 @@ export default function TrainerDashboard() {
             </button>
           </div>
 
+          <div className="mb-4">
+            <input
+              value={sessionSearch}
+              onChange={(e) => setSessionSearch(e.target.value)}
+              placeholder="Search sessions by unit, title, date, venue..."
+              className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            />
+          </div>
+
           {showCreateForm && (
             <CreateSessionForm
               locations={locations}
@@ -160,13 +215,19 @@ export default function TrainerDashboard() {
 
           <div className="bg-white shadow overflow-hidden sm:rounded-md">
             <ul className="divide-y divide-gray-200">
-              {sessions.length === 0 ? (
+              {filteredSessions.length === 0 ? (
                 <li className="px-6 py-4 text-center text-gray-500">
-                  No sessions found. Create your first session to get started.
+                  No sessions found.
                 </li>
               ) : (
-                sessions.map((session) => (
-                  <SessionItem key={session.id} session={session} onUpdate={fetchSessions} />
+                filteredSessions.map((session) => (
+                  <SessionItem
+                    key={session.id}
+                    session={session}
+                    deleting={deletingSessionId === session.id}
+                    onDelete={deleteSession}
+                    onUpdate={fetchSessions}
+                  />
                 ))
               )}
             </ul>
@@ -177,7 +238,17 @@ export default function TrainerDashboard() {
   );
 }
 
-function SessionItem({ session, onUpdate }: { session: Session; onUpdate: () => void }) {
+function SessionItem({
+  session,
+  deleting,
+  onDelete,
+  onUpdate,
+}: {
+  session: Session;
+  deleting: boolean;
+  onDelete: (id: string) => void;
+  onUpdate: () => void;
+}) {
   const [showQR, setShowQR] = useState(false);
 
   return (
@@ -220,6 +291,15 @@ function SessionItem({ session, onUpdate }: { session: Session; onUpdate: () => 
             className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded text-sm hover:bg-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {showQR ? 'Hide' : 'Show'} QR
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onDelete(session.id)}
+            disabled={deleting}
+            className="bg-red-50 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-100 disabled:opacity-50"
+          >
+            {deleting ? 'Deleting…' : 'Delete'}
           </button>
         </div>
       </div>

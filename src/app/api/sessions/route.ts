@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireRole } from '@/lib/roleAuth';
+import { requireAdmin } from '@/lib/adminAuth';
 
 export async function GET(request: NextRequest) {
   try {
@@ -68,6 +69,73 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) {
+      return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
+    }
+
+    const adminGate = await requireAdmin(request);
+    if (adminGate.ok) {
+      const { error: attendanceError } = await (supabaseAdmin as any)
+        .from('attendance')
+        .delete()
+        .eq('session_id', id);
+
+      if (attendanceError) {
+        return NextResponse.json({ success: false, error: attendanceError.message }, { status: 500 });
+      }
+
+      const { error: sessionError } = await (supabaseAdmin as any).from('sessions').delete().eq('id', id);
+      if (sessionError) {
+        return NextResponse.json({ success: false, error: sessionError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
+    const trainerGate = await requireRole(request, 'trainer');
+    if (!trainerGate.ok) return trainerGate.response;
+
+    const { data: sessionRow, error: sessionRowError } = await supabaseAdmin
+      .from('sessions')
+      .select('id, trainer_id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (sessionRowError) {
+      return NextResponse.json({ success: false, error: sessionRowError.message }, { status: 500 });
+    }
+
+    if (!sessionRow || (sessionRow as any).trainer_id !== trainerGate.userId) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { error: attendanceError } = await (supabaseAdmin as any)
+      .from('attendance')
+      .delete()
+      .eq('session_id', id);
+
+    if (attendanceError) {
+      return NextResponse.json({ success: false, error: attendanceError.message }, { status: 500 });
+    }
+
+    const { error: sessionError } = await (supabaseAdmin as any).from('sessions').delete().eq('id', id);
+    if (sessionError) {
+      return NextResponse.json({ success: false, error: sessionError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (e: any) {
+    return NextResponse.json(
+      { success: false, error: e?.message ?? 'Internal server error' },
       { status: 500 }
     );
   }

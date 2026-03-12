@@ -36,22 +36,69 @@ export default async function DashboardPage() {
   const name = (meta?.name ?? '') as string;
   const email = (session.user.email ?? '') as string;
 
-  const cards: { href: string; title: string; description: string }[] =
+  const cards: {
+    href: string;
+    title: string;
+    description: string;
+    emoji: string;
+    accent: string;
+  }[] =
     role === 'admin'
       ? [
-          { href: '/admin', title: 'Admin Panel', description: 'Manage units, venues, users, and assignments' },
-          { href: '/admin/units', title: 'Units', description: 'Create and manage semester units' },
-          { href: '/admin/venues', title: 'Venues', description: 'Preload venues for predictable locations' },
-          { href: '/admin/assignments', title: 'Assignments', description: 'Assign trainers to units' },
-          { href: '/admin/users', title: 'Users', description: 'Create lecturer accounts and manage roles' },
+          {
+            href: '/admin/units',
+            title: 'Units',
+            description: 'Create and manage semester units',
+            emoji: '📚',
+            accent: 'from-indigo-50 to-white',
+          },
+          {
+            href: '/admin/venues',
+            title: 'Venues',
+            description: 'Preload venues for predictable locations',
+            emoji: '📍',
+            accent: 'from-emerald-50 to-white',
+          },
+          {
+            href: '/admin/assignments',
+            title: 'Assignments',
+            description: 'Assign trainers to units',
+            emoji: '🧑‍🏫',
+            accent: 'from-amber-50 to-white',
+          },
+          {
+            href: '/admin/users',
+            title: 'Users',
+            description: 'Create lecturer accounts and manage roles',
+            emoji: '👥',
+            accent: 'from-sky-50 to-white',
+          },
         ]
       : role === 'trainer'
         ? [
-            { href: '/trainer', title: 'Trainer Dashboard', description: 'Create sessions and manage attendance' },
-            { href: '/reports', title: 'Reports', description: 'View attendance reports for your sessions' },
+            {
+              href: '/trainer',
+              title: 'Sessions',
+              description: 'Create sessions and manage attendance',
+              emoji: '🗓️',
+              accent: 'from-indigo-50 to-white',
+            },
+            {
+              href: '/reports',
+              title: 'Reports',
+              description: 'View attendance reports for your sessions',
+              emoji: '📊',
+              accent: 'from-emerald-50 to-white',
+            },
           ]
         : [
-            { href: '/trainee', title: 'Trainee Dashboard', description: 'Scan QR or enter code to mark attendance' },
+            {
+              href: '/trainee',
+              title: 'Mark Attendance',
+              description: 'Scan QR or enter code to mark attendance',
+              emoji: '✅',
+              accent: 'from-indigo-50 to-white',
+            },
           ];
 
   return (
@@ -91,9 +138,20 @@ export default async function DashboardPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {cards.map((c) => (
-              <Link key={c.href} href={c.href} className="bg-white shadow rounded-lg p-6 hover:shadow-md">
-                <div className="text-lg font-medium text-gray-900">{c.title}</div>
-                <div className="text-sm text-gray-600 mt-1">{c.description}</div>
+              <Link
+                key={c.href}
+                href={c.href}
+                className={`bg-gradient-to-br ${c.accent} border border-gray-200 shadow-sm rounded-lg p-6 hover:shadow-md transition-shadow`}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-lg font-semibold text-gray-900">{c.title}</div>
+                    <div className="text-sm text-gray-600 mt-1">{c.description}</div>
+                  </div>
+                  <div className="text-2xl" aria-hidden="true">
+                    {c.emoji}
+                  </div>
+                </div>
               </Link>
             ))}
           </div>

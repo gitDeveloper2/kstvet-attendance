@@ -16,6 +16,7 @@ export default function TraineeDashboard() {
   const [showScanner, setShowScanner] = useState(false);
   const [loadingAttendance, setLoadingAttendance] = useState(true);
   const [uncheckingAttendanceId, setUncheckingAttendanceId] = useState<string | null>(null);
+  const [attendanceSearch, setAttendanceSearch] = useState('');
   const [scanResult, setScanResult] = useState<any>(null);
   const [manualCode, setManualCode] = useState('');
   const [markingAttendance, setMarkingAttendance] = useState(false);
@@ -253,6 +254,16 @@ export default function TraineeDashboard() {
     return null;
   }
 
+  const filteredAttendance = attendance.filter((record) => {
+    const q = attendanceSearch.trim().toLowerCase();
+    if (!q) return true;
+
+    const title = (record.session?.title ?? '').toLowerCase();
+    const location = (record.session?.location?.name ?? '').toLowerCase();
+    const timestamp = record.timestamp ? new Date(record.timestamp).toLocaleString().toLowerCase() : '';
+    return title.includes(q) || location.includes(q) || timestamp.includes(q);
+  });
+
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white shadow">
@@ -371,14 +382,24 @@ export default function TraineeDashboard() {
 
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Your Attendance History</h2>
+
+            <div className="mb-4">
+              <input
+                value={attendanceSearch}
+                onChange={(e) => setAttendanceSearch(e.target.value)}
+                placeholder="Search history by session, location, date..."
+                className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              />
+            </div>
+
             <div className="bg-white shadow overflow-hidden sm:rounded-md">
               <ul className="divide-y divide-gray-200">
-                {attendance.length === 0 ? (
+                {filteredAttendance.length === 0 ? (
                   <li className="px-6 py-4 text-center text-gray-500">
                     No attendance records found.
                   </li>
                 ) : (
-                  attendance.map((record) => (
+                  filteredAttendance.map((record) => (
                     <li key={record.id} className="px-6 py-4">
                       <div className="flex items-center justify-between">
                         <div>
