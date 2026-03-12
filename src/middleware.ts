@@ -74,9 +74,9 @@ export async function middleware(req: NextRequest) {
     });
   }
 
-  const roleFromMetadata = (authUser?.user_metadata as any)?.role as string | undefined;
-
   const isAdminRoute = pathname.startsWith('/admin');
+  const isTrainerRoute = pathname.startsWith('/trainer') || pathname.startsWith('/reports');
+  const isTraineeRoute = pathname.startsWith('/trainee');
 
   if (isProtectedRoute && !authUser) {
     console.log('[middleware] redirect unauthenticated -> /login', {
@@ -85,12 +85,38 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
-  if (isAdminRoute && authUser && roleFromMetadata && roleFromMetadata !== 'admin') {
+  // Role enforcement. Prefer role from public.users (authoritative), fall back to auth metadata.
+  let role: string | undefined = (authUser?.user_metadata as any)?.role;
+  if (authUser?.id) {
+    try {
+      const { data: profile, error } = await (supabase as any)
+        .from('users')
+        .select('role')
+        .eq('id', authUser.id)
+        .maybeSingle();
+
+      if (!error && profile?.role) {
+        role = profile.role as string;
+      }
+    } catch {
+      // ignore and use metadata fallback
+    }
+  }
+
+  if (isAdminRoute && role !== 'admin') {
     console.log('[middleware] redirect non-admin away from /admin', {
       path: pathname,
       userId: authUser.id,
-      role: roleFromMetadata ?? 'unknown',
+      role: role ?? 'unknown',
     });
+    return NextResponse.redirect(new URL('/dashboard', req.url));
+  }
+
+  if (isTrainerRoute && role !== 'trainer' && role !== 'admin') {
+    return NextResponse.redirect(new URL('/dashboard', req.url));
+  }
+
+  if (isTraineeRoute && role !== 'trainee' && role !== 'admin') {
     return NextResponse.redirect(new URL('/dashboard', req.url));
   }
 

@@ -62,6 +62,13 @@ export default async function DashboardPage() {
     role === 'admin'
       ? [
           {
+            href: '/admin',
+            title: 'Admin',
+            description: 'Admin home & quick links',
+            emoji: '🛠️',
+            accent: 'from-purple-50 to-white',
+          },
+          {
             href: '/admin/units',
             title: 'Units',
             description: 'Create and manage semester units',
